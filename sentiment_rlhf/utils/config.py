@@ -77,7 +77,7 @@ class RLHFConfig:
     # PPO specific parameters
     reward_coef: float = 0.5
     kl_penalty: float = 0.05
-    lm_loss_coef: float = 0.00
+    lm_loss_coef: float = 0.01
     clip_epsilon: float = 0.2
     num_ppo_updates: int = 8
     entropy_coef: float = 0.01
