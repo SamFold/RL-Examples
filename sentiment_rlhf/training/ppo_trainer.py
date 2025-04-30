@@ -429,9 +429,16 @@ class SentimentRLHFTrainer:
         # ---------------------------------------------------------
         self.policy_optimizer.zero_grad()
         
-        # Forward pass for policy
-        outputs = self.model.pretrained_model(seq)
-        logits = outputs[0]
+        # Use mixed precision if available
+        autocast = getattr(self, 'mp_manager', None).get_autocast() if self.use_mixed_precision else nullcontext()
+        
+        # Import nullcontext here for non-mixed precision case
+        from contextlib import nullcontext
+        
+        # Forward pass for policy with optional mixed precision
+        with autocast:
+            outputs = self.model.pretrained_model(seq)
+            logits = outputs[0]
         
         # Create labels for language modeling
         input_ids = seq
@@ -495,16 +502,21 @@ class SentimentRLHFTrainer:
             policy_combined_loss -= self.entropy_coef * entropy
             
         # Backward pass for policy (only affects pretrained_model)
-        policy_combined_loss.backward()
-        
-        # Clip policy gradients
-        torch.nn.utils.clip_grad_norm_(
-            self.model.pretrained_model.parameters(), 
-            max_norm=self.policy_grad_clip
-        )
-        
-        # Update policy network
-        self.policy_optimizer.step()
+        if self.use_mixed_precision:
+            # Use mixed precision backward
+            self.mp_manager.backward(policy_combined_loss)
+        else:
+            # Standard backward
+            policy_combined_loss.backward()
+            
+            # Clip policy gradients
+            torch.nn.utils.clip_grad_norm_(
+                self.model.pretrained_model.parameters(), 
+                max_norm=self.policy_grad_clip
+            )
+            
+            # Update policy network
+            self.policy_optimizer.step()
         
         # 2. Value Network Optimization (separate) - do in a completely new forward pass
         # ---------------------------------------------------------------------
@@ -517,27 +529,35 @@ class SentimentRLHFTrainer:
         # Detach hidden states to avoid backward through policy network
         hidden_states_detached = hidden_states.detach()
         
-        # Compute value prediction
-        value_pred = self.model.v_head(hidden_states_detached[:, -1]).squeeze()
+        # Use mixed precision if available for value head computation
+        with autocast:
+            # Compute value prediction
+            value_pred = self.model.v_head(hidden_states_detached[:, -1]).squeeze()
+            
+            # Calculate value loss with normalized reward
+            value_loss = F.mse_loss(value_pred, reward)
         
-        # Calculate value loss with normalized reward
-        value_loss = F.mse_loss(value_pred, reward)
         value_loss_value = value_loss.item()
         
         # Scale value loss (same as in original code) (adjusted this from 0.5)
         scaled_value_loss = value_loss
         
-        # Backward pass for value network
-        scaled_value_loss.backward()
-        
-        # Clip value gradients
-        torch.nn.utils.clip_grad_norm_(
-            self.model.v_head.parameters(), 
-            max_norm=self.value_grad_clip
-        )
-        
-        # Update value network
-        self.value_optimizer.step()
+        # Backward pass for value network with mixed precision if enabled
+        if self.use_mixed_precision:
+            # Use mixed precision backward
+            self.mp_manager.backward(scaled_value_loss, self.value_optimizer)
+        else:
+            # Standard backward
+            scaled_value_loss.backward()
+            
+            # Clip value gradients
+            torch.nn.utils.clip_grad_norm_(
+                self.model.v_head.parameters(), 
+                max_norm=self.value_grad_clip
+            )
+            
+            # Update value network
+            self.value_optimizer.step()
         
         return (
             policy_loss_value,
@@ -562,6 +582,10 @@ class SentimentRLHFTrainer:
         # Store model device
         model_device = next(self.model.parameters()).device
         
+        # Check for mixed precision capability
+        # If the mixed precision manager was set by apply_trainer_optimizations, use it
+        self.use_mixed_precision = hasattr(self, 'mp_manager')
+        
         # Print training configuration
         print(f"Training configuration:")
         print(f"  Device: {self.device}")
@@ -569,6 +593,10 @@ class SentimentRLHFTrainer:
         print(f"  KL penalty: {self.kl_penalty}")
         print(f"  Policy learning rate: {self.learning_rate}")
         print(f"  Value learning rate: {self.learning_rate * self.value_lr_multiplier}")
+        
+        # Print mixed precision status if enabled
+        if self.use_mixed_precision:
+            print(f"  Mixed precision: Enabled ({self.mp_manager.mixed_dtype})")
         print()
         
         # Print header

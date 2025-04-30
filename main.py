@@ -13,7 +13,7 @@ from sentiment_rlhf.data import build_dataset
 from sentiment_rlhf.models import ModelLoader
 from sentiment_rlhf.training import SentimentRLHFTrainer, create_reward_model
 from sentiment_rlhf.training.parallel_reward_model import create_parallel_reward_model
-from sentiment_rlhf.utils import get_default_config
+from sentiment_rlhf.utils import get_default_config, get_optimal_cuda_settings, apply_trainer_optimizations
 from sentiment_rlhf.utils.config import default_ppo_config, default_sentiment_kwargs
 
 
@@ -54,6 +54,10 @@ def parse_arguments():
                         help="Device to use for training (cuda, mps, or cpu)")
     parser.add_argument("--optimize_device", action="store_true",
                         help="Enable device-specific optimizations (H100 for CUDA, MPS for Mac)")
+    parser.add_argument("--mixed_precision", action="store_true",
+                        help="Enable mixed precision training for faster performance on H100/A100 GPUs")
+    parser.add_argument("--precision_dtype", type=str, default="bfloat16", choices=["bfloat16", "float16"],
+                        help="Mixed precision data type to use (bfloat16 for H100/A100, float16 for other GPUs)")
     
     # Training behavior configuration
     parser.add_argument("--no_exploration", action="store_true",
@@ -311,16 +315,27 @@ def main():
     if args.device is None:
         if torch.cuda.is_available():
             args.device = "cuda"
-            # Only apply H100 optimizations if flag is set
-            if args.optimize_device:
-                print("Applying CUDA-specific optimizations for H100/A100")
-                torch.backends.cuda.matmul.allow_tf32 = True
-                torch.backends.cudnn.allow_tf32 = True
-                torch.backends.cudnn.benchmark = True
+            
             # Display CUDA device info
             print(f"CUDA device count: {torch.cuda.device_count()}")
             print(f"CUDA device name: {torch.cuda.get_device_name(0)}")
             print(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
+            
+            # Get optimal settings based on GPU hardware
+            if args.optimize_device:
+                optimal_settings = get_optimal_cuda_settings()
+                print(f"Applying optimal CUDA settings for {torch.cuda.get_device_name(0)}")
+                
+                # Apply basic CUDA optimizations
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
+                torch.backends.cudnn.benchmark = True
+                
+                # Enable mixed precision by default for H100/A100 if optimizing
+                if "H100" in torch.cuda.get_device_name(0) or "A100" in torch.cuda.get_device_name(0):
+                    args.mixed_precision = True
+                    print(f"Mixed precision automatically enabled for {torch.cuda.get_device_name(0)}")
+            
         elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
             args.device = "mps"
             # Apply MPS optimizations if flag is set
@@ -329,7 +344,15 @@ def main():
                 # Apple Silicon specific optimizations could go here
         else:
             args.device = "cpu"
+            
     print(f"Using device: {args.device}")
+    
+    # Report mixed precision status
+    if args.mixed_precision and args.device == "cuda":
+        print(f"Mixed precision training enabled using {args.precision_dtype}")
+    elif args.mixed_precision and args.device != "cuda":
+        print("Mixed precision requested but not supported on this device. Using full precision.")
+        args.mixed_precision = False
     
     if args.inference:
         run_inference(args)
@@ -337,6 +360,17 @@ def main():
     
     # Setup training
     trainer, tokenizer, config = setup_training(args)
+    
+    # Apply mixed precision optimizations if enabled
+    if args.mixed_precision and args.device == "cuda":
+        print("Applying mixed precision optimizations to trainer...")
+        optimization_stats = apply_trainer_optimizations(
+            trainer,
+            use_mixed_precision=True,
+            precision_dtype=args.precision_dtype,
+            optimize_memory=args.optimize_device
+        )
+        print(f"Applied optimizations: {optimization_stats}")
     
     # Store reward model reference to use later
     reward_model = trainer.reward_model
