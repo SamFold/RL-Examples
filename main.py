@@ -436,9 +436,15 @@ def main():
     print(f"  Use exploration: {trainer.use_exploration}")
     print(f"  Batch size: {trainer.config.batch_size}")
     print(f"  Learning rate: {trainer.learning_rate}")
+    
+    # KL divergence parameters
+    print(f"\n  KL Divergence Configuration:")
     print(f"  Max KL target: {trainer.config.max_kl_target}")
     print(f"  KL penalty: {trainer.kl_penalty}")
-    print(f"  Value LR multiplier: {trainer.value_lr_multiplier}")
+    print(f"  Update reference frequency: {trainer.config.update_ref_freq}")
+    print(f"  Reference EMA coefficient: {trainer.config.ref_ema_coef}")
+    
+    print(f"\n  Value LR multiplier: {trainer.value_lr_multiplier}")
     
     # Print mixed precision status if enabled
     if hasattr(trainer, 'mp_manager'):
@@ -526,8 +532,13 @@ def main():
         "lm_loss_coef": trainer.lm_loss_coef,
         "num_ppo_updates": trainer.num_ppo_updates,
         "use_exploration": trainer.use_exploration,
+        
+        # KL divergence parameters
         "max_kl_target": trainer.config.max_kl_target,
         "kl_penalty": trainer.kl_penalty,
+        "update_ref_freq": trainer.config.update_ref_freq,
+        "ref_ema_coef": trainer.config.ref_ema_coef,
+        
         "value_lr_multiplier": trainer.value_lr_multiplier,
         "mixed_precision": hasattr(trainer, 'mp_manager'),
         "model_name": trainer.config.model_config.model_name,
@@ -536,11 +547,28 @@ def main():
         "total_epochs": train_stats['epochs_trained']
     }
     
-    # Add comparison results to train_stats
+    # Add comparison results and KL stats to train_stats
+    if 'kl_divergence_history' in train_stats and train_stats['kl_divergence_history']:
+        kl_history = train_stats['kl_divergence_history']
+        kl_stats = {
+            "kl_max": max(kl_history),
+            "kl_min": min(kl_history),
+            "kl_avg": sum(kl_history) / len(kl_history),
+            "kl_final": kl_history[-1] if kl_history else 0,
+        }
+    else:
+        kl_stats = {
+            "kl_max": 0,
+            "kl_min": 0,
+            "kl_avg": 0,
+            "kl_final": 0,
+        }
+    
     train_stats.update({
         "ref_avg": comparison['ref_avg'],
         "trained_avg": comparison['trained_avg'],
-        "avg_diff": comparison['avg_diff']
+        "avg_diff": comparison['avg_diff'],
+        **kl_stats
     })
     
     # Log the results

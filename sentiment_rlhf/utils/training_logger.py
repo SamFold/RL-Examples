@@ -38,8 +38,13 @@ class TrainingLogger:
             "lm_loss_coef": params.get("lm_loss_coef"),
             "num_ppo_updates": params.get("num_ppo_updates"),
             "use_exploration": params.get("use_exploration"),
+            
+            # KL divergence parameters
             "max_kl_target": params.get("max_kl_target"),
             "kl_penalty": params.get("kl_penalty"),
+            "update_ref_freq": params.get("update_ref_freq"),
+            "ref_ema_coef": params.get("ref_ema_coef"),
+            
             "value_lr_multiplier": params.get("value_lr_multiplier"),
             "mixed_precision": params.get("mixed_precision"),
             
@@ -50,6 +55,12 @@ class TrainingLogger:
             "ref_avg_score": results.get("ref_avg"),
             "trained_avg_score": results.get("trained_avg"),
             "improvement": results.get("avg_diff"),
+            
+            # KL divergence statistics
+            "kl_max": results.get("kl_max"),
+            "kl_min": results.get("kl_min"),
+            "kl_avg": results.get("kl_avg"),
+            "kl_final": results.get("kl_final"),
             
             # Optional additional info
             "model_name": params.get("model_name"),

@@ -158,7 +158,8 @@ class ParallelGPT4RewardModel(BaseRewardModel):
                         {"role": "system", "content": self.system_prompt},
                         {"role": "user", "content": f'Rate this movie review: "{prompt_and_completion}"'}
                     ],
-                    "temperature": 0.0  # Use 0 temperature for consistency
+                    "temperature": 0.0,  # Use 0 temperature for consistency
+                    "store": True        # Store output for OpenAI's model distillation/evals
                 }
             )
             
