@@ -2,6 +2,7 @@
 
 import torch
 from typing import Optional, Dict, Any, Union
+from contextlib import nullcontext
 
 
 class MixedPrecisionManager:
@@ -86,7 +87,6 @@ class MixedPrecisionManager:
             return torch.amp.autocast(device_type=self.device, dtype=self.mixed_dtype)
         else:
             # Return a dummy context manager when disabled
-            from contextlib import nullcontext
             return nullcontext()
         
     def backward(self, loss, optimizer=None):

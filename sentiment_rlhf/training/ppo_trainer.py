@@ -9,6 +9,7 @@ from trl import PPOTrainer, PPOConfig
 from trl.core import LengthSampler
 import pandas as pd
 from tqdm import tqdm
+from contextlib import nullcontext
 
 class SentimentRLHFTrainer:
     """Trainer for sentiment RLHF using PPO."""
@@ -431,9 +432,6 @@ class SentimentRLHFTrainer:
         
         # Use mixed precision if available
         autocast = getattr(self, 'mp_manager', None).get_autocast() if self.use_mixed_precision else nullcontext()
-        
-        # Import nullcontext here for non-mixed precision case
-        from contextlib import nullcontext
         
         # Forward pass for policy with optional mixed precision
         with autocast:
