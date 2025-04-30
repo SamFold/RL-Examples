@@ -72,7 +72,7 @@ class RLHFConfig:
     # Reference model update strategy
     update_ref_freq: int = 10  # Much less frequent updates
     ref_ema_coef: float = 0.95  # Exponential moving average coefficient for reference model updates
-    max_kl_target: float = 0.30  # Maximum allowed KL divergence before forced update
+    max_kl_target: float = 0.50  # Maximum allowed KL divergence before forced update
     
     # PPO specific parameters
     reward_coef: float = 0.5
