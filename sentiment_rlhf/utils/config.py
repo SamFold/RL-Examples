@@ -22,7 +22,7 @@ def default_ppo_config(batch_size=32) -> PPOConfig:
         batch_size: Batch size for training and evaluation.
     """
     return PPOConfig(
-        learning_rate=1e-5,  # Reduced from 1.41e-5 for better stability
+        learning_rate=1e-5,  
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
     )

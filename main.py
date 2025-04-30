@@ -14,6 +14,7 @@ from sentiment_rlhf.models import ModelLoader
 from sentiment_rlhf.training import SentimentRLHFTrainer, create_reward_model
 from sentiment_rlhf.training.parallel_reward_model import create_parallel_reward_model
 from sentiment_rlhf.utils import get_default_config
+from sentiment_rlhf.utils.config import default_ppo_config, default_sentiment_kwargs
 
 
 def parse_arguments():
@@ -146,8 +147,7 @@ def setup_training(args):
         print(f"Using parallel reward model with batch size {config.batch_size}")
         reward_model = create_parallel_reward_model(
             reward_type="gpt4",
-            api_key=args.openai_api_key,
-            batch_size=config.batch_size
+            api_key=args.openai_api_key
         )
     else:
         print("Using sequential reward model")
@@ -178,6 +178,10 @@ def run_inference(args):
     Args:
         args: The command line arguments.
     """
+    # Get default config to use batch size
+    config = get_default_config()
+    config.batch_size = args.batch_size
+    
     if args.model_path is None:
         raise ValueError("Model path is required for inference mode")
     
@@ -252,8 +256,7 @@ def run_inference(args):
         print(f"Using parallel reward model with batch size {config.batch_size}")
         reward_model = create_parallel_reward_model(
             reward_type="gpt4",
-            api_key=args.openai_api_key,
-            batch_size=config.batch_size
+            api_key=args.openai_api_key
         )
     else:
         print("Using sequential reward model")

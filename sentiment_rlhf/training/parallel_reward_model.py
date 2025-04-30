@@ -221,12 +221,11 @@ def create_parallel_reward_model(reward_type, **kwargs):
         # Always use the batch size from global config
         from sentiment_rlhf.utils import get_default_config
         default_config = get_default_config()
-        batch_size = kwargs.get("batch_size", default_config.batch_size)
         max_workers = kwargs.get("max_workers", 16)
         
         return ParallelGPT4RewardModel(
             api_key=kwargs["api_key"],
-            batch_size=batch_size,
+            batch_size=default_config.batch_size,
             max_workers=max_workers
         )
     else:
