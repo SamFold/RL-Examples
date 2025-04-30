@@ -81,6 +81,8 @@ python main.py --inference --model_path path/to/trained/model --openai_api_key Y
 - `--output_dir`: Directory for outputs (default: "trainer_output")
 - `--device`: Training device ("cuda", "mps", or "cpu")
 - `--optimize_device`: Enable hardware-specific optimizations for CUDA/MPS
+- `--mixed_precision`: Enable mixed precision training for faster performance
+- `--precision_dtype`: Mixed precision type to use ("bfloat16" or "float16")
 - `--no_exploration`: Disable exploration (entropy bonus)
 - `--inference`: Run in inference mode
 - `--model_path`: Path to trained model for inference
@@ -89,6 +91,7 @@ python main.py --inference --model_path path/to/trained/model --openai_api_key Y
 
 - **GPT-4o Reward Model**: Uses OpenAI's GPT-4o as a reward function to evaluate text quality
 - **Parallel Reward Processing**: Supports parallel OpenAI API calls for 10-20x speedup in reward computation
+- **Mixed Precision Training**: Up to 3x speedup with BF16/FP16 on H100 GPUs
 - **Separate Policy/Value Optimization**: Uses distinct optimization steps for policy and value networks
 - **Reward Normalization**: Implements adaptive reward normalization for training stability
 - **Reference Model Updates**: Uses Exponential Moving Average (EMA) for stable reference model updates
