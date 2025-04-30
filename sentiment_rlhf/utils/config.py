@@ -70,14 +70,14 @@ class RLHFConfig:
     early_stopping_threshold: float = 0.01
     
     # Reference model update strategy
-    update_ref_freq: int = 50  # Much less frequent updates
+    update_ref_freq: int = 10  # Much less frequent updates
     ref_ema_coef: float = 0.95  # Exponential moving average coefficient for reference model updates
-    max_kl_target: float = 0.50  # Maximum allowed KL divergence before forced update
+    max_kl_target: float = 0.15  # Maximum allowed KL divergence before forced update
     
     # PPO specific parameters
     reward_coef: float = 0.5
-    kl_penalty: float = 0.05
-    lm_loss_coef: float = 0.01
+    kl_penalty: float = 0.02
+    lm_loss_coef: float = 0.0
     clip_epsilon: float = 0.2
     num_ppo_updates: int = 8
     entropy_coef: float = 0.01
