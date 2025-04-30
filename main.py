@@ -15,6 +15,7 @@ from sentiment_rlhf.training import SentimentRLHFTrainer, create_reward_model
 from sentiment_rlhf.training.parallel_reward_model import create_parallel_reward_model
 from sentiment_rlhf.utils import get_default_config, get_optimal_cuda_settings, apply_trainer_optimizations
 from sentiment_rlhf.utils.config import default_ppo_config, default_sentiment_kwargs
+from sentiment_rlhf.utils.training_logger import TrainingLogger
 
 
 def parse_arguments():
@@ -68,6 +69,14 @@ def parse_arguments():
                         help="Run in inference mode instead of training")
     parser.add_argument("--model_path", type=str, default=None,
                         help="Path to a trained model for inference")
+    
+    # Training history viewing
+    parser.add_argument("--view_history", action="store_true",
+                        help="View training history without running training")
+    parser.add_argument("--history_file", type=str, default="trainer_output/training_results.csv",
+                        help="Path to training history file")
+    parser.add_argument("--history_metric", type=str, default="improvement",
+                        help="Metric to sort by when viewing best training runs")
     
     return parser.parse_args()
 
@@ -300,6 +309,49 @@ def run_inference(args):
     print(f"\nOverall average GPT-4o score: {overall_average:.3f}")
 
 
+def view_training_history(args):
+    """
+    View training history without running a new training session.
+    
+    Args:
+        args: Command line arguments
+    """
+    logger = TrainingLogger(args.history_file)
+    
+    # Get recent runs
+    recent_runs = logger.get_summary(n_recent=10)
+    print("\nRecent training runs:")
+    print(recent_runs)
+    
+    # Get best runs by specified metric
+    best_runs = logger.get_best_runs(metric=args.history_metric, n_best=5)
+    print(f"\nBest training runs by {args.history_metric}:")
+    print(best_runs)
+    
+    # Show some stats about all runs if there's enough data
+    try:
+        import pandas as pd
+        df = pd.read_csv(args.history_file)
+        if len(df) > 0:
+            print("\nTraining history statistics:")
+            print(f"Total runs: {len(df)}")
+            
+            # Get best run
+            best_idx = df[args.history_metric].idxmax()
+            best_run = df.loc[best_idx]
+            print(f"\nBest run by {args.history_metric}:")
+            for key, value in best_run.items():
+                print(f"  {key}: {value}")
+                
+            # Show parameter correlations with performance
+            if len(df) >= 5:  # Only show if we have enough data points
+                print("\nParameter correlations with improvement:")
+                numeric_cols = df.select_dtypes(include=['number']).columns
+                correlations = df[numeric_cols].corr()['improvement'].sort_values(ascending=False)
+                print(correlations)
+    except Exception as e:
+        print(f"Error analyzing training history: {e}")
+
 def main():
     """
     Main function for sentiment RLHF model training.
@@ -310,6 +362,11 @@ def main():
     print("Arguments:")
     for arg, value in vars(args).items():
         print(f"  {arg}: {value}")
+    
+    # Handle viewing training history
+    if args.view_history:
+        view_training_history(args)
+        return
     
     # Get device
     if args.device is None:
@@ -371,6 +428,24 @@ def main():
             optimize_memory=args.optimize_device
         )
         print(f"Applied optimizations: {optimization_stats}")
+    
+    # Log key parameters for training
+    print(f"\n{'='*30} KEY PARAMETERS {'='*30}")
+    print(f"  LM loss coefficient: {trainer.lm_loss_coef}")
+    print(f"  Number of PPO updates: {trainer.num_ppo_updates}")
+    print(f"  Use exploration: {trainer.use_exploration}")
+    print(f"  Batch size: {trainer.config.batch_size}")
+    print(f"  Learning rate: {trainer.learning_rate}")
+    print(f"  Max KL target: {trainer.config.max_kl_target}")
+    print(f"  KL penalty: {trainer.kl_penalty}")
+    print(f"  Value LR multiplier: {trainer.value_lr_multiplier}")
+    
+    # Print mixed precision status if enabled
+    if hasattr(trainer, 'mp_manager'):
+        print(f"  Mixed precision: Enabled ({trainer.mp_manager.mixed_dtype})")
+    else:
+        print(f"  Mixed precision: Disabled")
+    print(f"{'='*75}\n")
     
     # Store reward model reference to use later
     reward_model = trainer.reward_model
@@ -440,6 +515,46 @@ def main():
         
         print(f"Improvement: {trained_avg - ref_avg:.3f}")
         print("-" * 80)
+    
+    # Log training parameters and results
+    logger = TrainingLogger(os.path.join(args.output_dir, "training_results.csv"))
+    
+    # Collect parameters
+    parameters = {
+        "batch_size": trainer.config.batch_size,
+        "learning_rate": trainer.learning_rate,
+        "lm_loss_coef": trainer.lm_loss_coef,
+        "num_ppo_updates": trainer.num_ppo_updates,
+        "use_exploration": trainer.use_exploration,
+        "max_kl_target": trainer.config.max_kl_target,
+        "kl_penalty": trainer.kl_penalty,
+        "value_lr_multiplier": trainer.value_lr_multiplier,
+        "mixed_precision": hasattr(trainer, 'mp_manager'),
+        "model_name": trainer.config.model_config.model_name,
+        "device": trainer.device,
+        "output_dir": args.output_dir,
+        "total_epochs": train_stats['epochs_trained']
+    }
+    
+    # Add comparison results to train_stats
+    train_stats.update({
+        "ref_avg": comparison['ref_avg'],
+        "trained_avg": comparison['trained_avg'],
+        "avg_diff": comparison['avg_diff']
+    })
+    
+    # Log the results
+    logger.log_training_run(parameters, train_stats)
+    
+    # Print summary of recent training runs
+    recent_runs = logger.get_summary()
+    print("\nRecent training runs:")
+    print(recent_runs)
+    
+    # Also show best runs by improvement
+    best_runs = logger.get_best_runs(metric="improvement")
+    print("\nBest training runs by improvement:")
+    print(best_runs)
     
     print("\nTraining and evaluation complete!")
 

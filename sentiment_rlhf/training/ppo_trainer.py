@@ -586,18 +586,7 @@ class SentimentRLHFTrainer:
         # If the mixed precision manager was set by apply_trainer_optimizations, use it
         self.use_mixed_precision = hasattr(self, 'mp_manager')
         
-        # Print training configuration
-        print(f"Training configuration:")
-        print(f"  Device: {self.device}")
-        print(f"  Exploration (entropy bonus): {'Enabled' if self.use_exploration else 'Disabled'}")
-        print(f"  KL penalty: {self.kl_penalty}")
-        print(f"  Policy learning rate: {self.learning_rate}")
-        print(f"  Value learning rate: {self.learning_rate * self.value_lr_multiplier}")
-        
-        # Print mixed precision status if enabled
-        if self.use_mixed_precision:
-            print(f"  Mixed precision: Enabled ({self.mp_manager.mixed_dtype})")
-        print()
+        # Key parameters now logged in main.py before training starts
         
         # Print header
         print(f"{'Epoch':<6} {'RawReward':<10} {'NormReward':<10} {'Loss':<10} {'API Calls':<10} {'Cache Size':<10}")
