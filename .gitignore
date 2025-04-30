@@ -1,9 +1,7 @@
 # Data directory
-data/
 STEP*
 GCP*
 RLHF_*
-MODEL*
 trl_*
 *.ipynb
 # Model checkpoints and saved models
@@ -15,7 +13,7 @@ gpt2-imdb-pos-v2/
 gpt2-imdb-gpt4o-*/
 gpt2-imdb-pos-*/
 trainer_output/
-
+*.parquet
 # Model files
 *.safetensors
 merges.txt
