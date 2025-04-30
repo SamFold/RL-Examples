@@ -12,6 +12,7 @@ from datetime import datetime
 from sentiment_rlhf.data import build_dataset
 from sentiment_rlhf.models import ModelLoader
 from sentiment_rlhf.training import SentimentRLHFTrainer, create_reward_model
+from sentiment_rlhf.training.parallel_reward_model import create_parallel_reward_model
 from sentiment_rlhf.utils import get_default_config
 
 
@@ -40,6 +41,8 @@ def parse_arguments():
     # Reward model configuration
     parser.add_argument("--openai_api_key", type=str, required=True,
                         help="OpenAI API key for GPT-4o reward model")
+    parser.add_argument("--parallel_reward", action="store_true",
+                        help="Use parallel reward model for faster evaluation")
     
     # Output configuration
     parser.add_argument("--output_dir", type=str, default="trainer_output",
@@ -79,9 +82,12 @@ def setup_training(args):
     
     # Override config with arguments
     config.model_config.model_name = args.model_name
-    config.ppo_config.per_device_train_batch_size = args.batch_size
-    config.ppo_config.per_device_eval_batch_size = args.batch_size
+    config.batch_size = args.batch_size
+    # Recreate ppo_config with updated batch size
+    config.ppo_config = default_ppo_config(config.batch_size)
     config.ppo_config.output_dir = args.output_dir
+    # Recreate sentiment_kwargs with updated batch size
+    config.sentiment_kwargs = default_sentiment_kwargs(config.batch_size)
     config.max_epochs = args.max_epochs
     config.save_freq = args.save_freq
     
@@ -136,10 +142,19 @@ def setup_training(args):
     )
     
     print("Setting up GPT-4o reward model...")
-    reward_model = create_reward_model(
-        reward_type="gpt4",
-        api_key=args.openai_api_key
-    )
+    if args.parallel_reward:
+        print(f"Using parallel reward model with batch size {config.batch_size}")
+        reward_model = create_parallel_reward_model(
+            reward_type="gpt4",
+            api_key=args.openai_api_key,
+            batch_size=config.batch_size
+        )
+    else:
+        print("Using sequential reward model")
+        reward_model = create_reward_model(
+            reward_type="gpt4",
+            api_key=args.openai_api_key
+        )
     
     print("Initializing trainer...")
     trainer = SentimentRLHFTrainer(
@@ -231,10 +246,21 @@ def run_inference(args):
     
     # Create GPT-4o reward model for evaluation
     from sentiment_rlhf.training import create_reward_model
-    reward_model = create_reward_model(
-        reward_type="gpt4",
-        api_key=args.openai_api_key
-    )
+    from sentiment_rlhf.training.parallel_reward_model import create_parallel_reward_model
+    
+    if args.parallel_reward:
+        print(f"Using parallel reward model with batch size {config.batch_size}")
+        reward_model = create_parallel_reward_model(
+            reward_type="gpt4",
+            api_key=args.openai_api_key,
+            batch_size=config.batch_size
+        )
+    else:
+        print("Using sequential reward model")
+        reward_model = create_reward_model(
+            reward_type="gpt4",
+            api_key=args.openai_api_key
+        )
     
     # Evaluate with GPT-4o
     print("Evaluating generations with GPT-4o...")
