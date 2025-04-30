@@ -48,6 +48,8 @@ def parse_arguments():
     # Device configuration
     parser.add_argument("--device", type=str, default=None,
                         help="Device to use for training (cuda, mps, or cpu)")
+    parser.add_argument("--optimize_device", action="store_true",
+                        help="Enable device-specific optimizations (H100 for CUDA, MPS for Mac)")
     
     # Training behavior configuration
     parser.add_argument("--no_exploration", action="store_true",
@@ -147,7 +149,8 @@ def setup_training(args):
         tokenizer=tokenizer,
         dataset=dataset,
         reward_model=reward_model,
-        device=args.device
+        device=args.device,
+        optimize_device=args.optimize_device
     )
     
     return trainer, tokenizer, config
@@ -279,8 +282,22 @@ def main():
     if args.device is None:
         if torch.cuda.is_available():
             args.device = "cuda"
+            # Only apply H100 optimizations if flag is set
+            if args.optimize_device:
+                print("Applying CUDA-specific optimizations for H100/A100")
+                torch.backends.cuda.matmul.allow_tf32 = True
+                torch.backends.cudnn.allow_tf32 = True
+                torch.backends.cudnn.benchmark = True
+            # Display CUDA device info
+            print(f"CUDA device count: {torch.cuda.device_count()}")
+            print(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+            print(f"CUDA memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB")
         elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
             args.device = "mps"
+            # Apply MPS optimizations if flag is set
+            if args.optimize_device:
+                print("Applying MPS-specific optimizations for Apple Silicon")
+                # Apple Silicon specific optimizations could go here
         else:
             args.device = "cpu"
     print(f"Using device: {args.device}")

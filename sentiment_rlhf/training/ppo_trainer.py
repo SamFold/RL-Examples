@@ -13,7 +13,7 @@ from tqdm import tqdm
 class SentimentRLHFTrainer:
     """Trainer for sentiment RLHF using PPO."""
     
-    def __init__(self, config, model, ref_model, tokenizer, dataset, reward_model, device=None):
+    def __init__(self, config, model, ref_model, tokenizer, dataset, reward_model, device=None, optimize_device=False):
         """
         Initialize the trainer.
         
@@ -32,6 +32,7 @@ class SentimentRLHFTrainer:
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.reward_model = reward_model
+        self.optimize_device = optimize_device
         
         # Set device
         if device is not None:
@@ -39,8 +40,18 @@ class SentimentRLHFTrainer:
         else:
             if torch.cuda.is_available():
                 self.device = "cuda"
+                # Apply CUDA optimizations if requested
+                if self.optimize_device:
+                    print("Applying CUDA-specific optimizations for trainer")
+                    torch.backends.cuda.matmul.allow_tf32 = True
+                    torch.backends.cudnn.allow_tf32 = True
+                    torch.backends.cudnn.benchmark = True
             elif hasattr(torch, 'mps') and torch.backends.mps.is_available():
                 self.device = "mps"
+                # Apply MPS optimizations if requested
+                if self.optimize_device:
+                    print("Applying MPS-specific optimizations for trainer")
+                    # Apple Silicon specific optimizations could go here
             else:
                 self.device = "cpu"
                 
@@ -94,6 +105,7 @@ class SentimentRLHFTrainer:
         # PPO specific parameters
         self.reward_coef = config.reward_coef
         self.kl_penalty = config.kl_penalty
+        self.lm_loss_coef = config.lm_loss_coef
         self.clip_epsilon = config.clip_epsilon
         self.num_ppo_updates = config.num_ppo_updates
         self.entropy_coef = config.entropy_coef
@@ -473,7 +485,7 @@ class SentimentRLHFTrainer:
         
         # Combine policy-related losses
         policy_combined_loss = (
-            #lm_loss +         # Removed Language modeling component
+            self.lm_loss_coef * lm_loss +         # Removed Language modeling component
             1.0 * policy_loss +     # PPO policy gradient component
             self.kl_penalty * masked_kl_div  # KL regularization component
         )

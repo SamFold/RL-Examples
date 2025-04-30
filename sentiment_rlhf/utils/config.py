@@ -19,8 +19,8 @@ def default_ppo_config() -> PPOConfig:
     """Default factory for PPOConfig."""
     return PPOConfig(
         learning_rate=1e-5,  # Reduced from 1.41e-5 for better stability
-        per_device_train_batch_size=16,
-        per_device_eval_batch_size=16,
+        per_device_train_batch_size=32,  # Increased for H100 GPU
+        per_device_eval_batch_size=32,  # Increased for H100 GPU
     )
 
 
@@ -66,6 +66,7 @@ class RLHFConfig:
     # PPO specific parameters
     reward_coef: float = 0.5
     kl_penalty: float = 0.05
+    lm_loss_coef: float = 0.00
     clip_epsilon: float = 0.2
     num_ppo_updates: int = 8
     entropy_coef: float = 0.01
